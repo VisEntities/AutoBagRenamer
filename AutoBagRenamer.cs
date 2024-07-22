@@ -11,7 +11,7 @@ using UnityEngine;
 namespace Oxide.Plugins
 {
     [Info("Auto Bag Renamer", "VisEntities", "1.0.0")]
-    [Description(" ")]
+    [Description("Automatically renames sleeping bags based on their location and surrounding biome.")]
     public class AutoBagRenamer : RustPlugin
     {
         #region Fields
