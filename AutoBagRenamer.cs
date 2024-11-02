@@ -5,12 +5,13 @@
  */
 
 using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Auto Bag Renamer", "VisEntities", "1.0.0")]
+    [Info("Auto Bag Renamer", "VisEntities", "1.1.0")]
     [Description("Automatically renames sleeping bags based on their location and surrounding biome.")]
     public class AutoBagRenamer : RustPlugin
     {
@@ -33,6 +34,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("Rename Based On Biome")]
             public bool RenameBasedOnBiome { get; set; }
+
+            [JsonProperty("Rename Based On Landmark Proximity")]
+            public bool RenameBasedOnLandmarkProximity { get; set; }
 
             [JsonProperty("Bag Name Format")]
             public string BagNameFormat { get; set; }
@@ -68,6 +72,12 @@ namespace Oxide.Plugins
             if (string.Compare(_config.Version, "1.0.0") < 0)
                 _config = defaultConfig;
 
+            if (string.Compare(_config.Version, "1.1.0") < 0)
+            {
+                _config.RenameBasedOnLandmarkProximity = defaultConfig.RenameBasedOnLandmarkProximity;
+                _config.BagNameFormat = defaultConfig.BagNameFormat;
+            }
+
             PrintWarning("Config update complete! Updated from version " + _config.Version + " to " + Version.ToString());
             _config.Version = Version.ToString();
         }
@@ -79,7 +89,8 @@ namespace Oxide.Plugins
                 Version = Version.ToString(),
                 RenameBasedOnGrid = true,
                 RenameBasedOnBiome = true,
-                BagNameFormat = "{grid} - {biome}"
+                RenameBasedOnLandmarkProximity = true,
+                BagNameFormat = "{grid} - {biome} - {landmark}"
             };
         }
 
@@ -121,6 +132,7 @@ namespace Oxide.Plugins
                 {
                     string grid = string.Empty;
                     string biome = string.Empty;
+                    string landmark = string.Empty;
 
                     if (_config.RenameBasedOnGrid)
                     {
@@ -132,9 +144,15 @@ namespace Oxide.Plugins
                         biome = GetBiome(entity.transform.position);
                     }
 
+                    if (_config.RenameBasedOnLandmarkProximity)
+                    {
+                        landmark = GetNearbyLandmark(entity.transform.position);
+                    }
+
                     string newName = _config.BagNameFormat
                         .Replace("{grid}", grid)
-                        .Replace("{biome}", biome);
+                        .Replace("{biome}", biome)
+                        .Replace("{landmark}", landmark);
 
                     SleepingBag sleepingBag = entity as SleepingBag;
                     if (sleepingBag != null && !string.IsNullOrEmpty(newName))
@@ -168,6 +186,57 @@ namespace Oxide.Plugins
         }
 
         #endregion Biome Retrieval
+
+        #region Landmark Retrieval
+
+        private string GetNearbyLandmark(Vector3 position)
+        {
+            GameObject[] allObjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
+            GameObject closestObject = null;
+            float closestDistance = -1;
+
+            foreach (GameObject gobject in allObjects)
+            {
+                if (!gobject.name.Contains("autospawn/monument"))
+                    continue;
+
+                float distance = Vector3.Distance(gobject.transform.position, position);
+
+                if (closestDistance == -1 || distance < closestDistance)
+                {
+                    closestObject = gobject;
+                    closestDistance = distance;
+                }
+            }
+
+            if (closestObject != null)
+            {
+                string simpleName = ExtractSimpleName(closestObject.name);
+
+                if (!string.IsNullOrEmpty(simpleName))
+                    return simpleName;
+            }
+
+            return string.Empty;
+        }
+
+        private static string ExtractSimpleName(string fullPrefabName)
+        {
+            int lastSlashIndex = fullPrefabName.LastIndexOf("/", StringComparison.Ordinal);
+            if (lastSlashIndex >= 0 && lastSlashIndex < fullPrefabName.Length - 1)
+            {
+                fullPrefabName = fullPrefabName.Substring(lastSlashIndex + 1);
+            }
+
+            if (fullPrefabName.EndsWith(".prefab"))
+            {
+                fullPrefabName = fullPrefabName.Remove(fullPrefabName.Length - ".prefab".Length);
+            }
+
+            return fullPrefabName;
+        }
+
+        #endregion Landmark Retrieval
 
         #region Permissions
 
