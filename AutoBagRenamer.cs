@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Auto Bag Renamer", "VisEntities", "1.1.0")]
+    [Info("Auto Bag Renamer", "VisEntities", "1.2.1")]
     [Description("Automatically renames sleeping bags based on their location and surrounding biome.")]
     public class AutoBagRenamer : RustPlugin
     {
@@ -37,6 +37,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("Rename Based On Landmark Proximity")]
             public bool RenameBasedOnLandmarkProximity { get; set; }
+
+            [JsonProperty("Rename Based On Player Name")]
+            public bool RenameBasedOnPlayerName { get; set; }
 
             [JsonProperty("Bag Name Format")]
             public string BagNameFormat { get; set; }
@@ -78,6 +81,12 @@ namespace Oxide.Plugins
                 _config.BagNameFormat = defaultConfig.BagNameFormat;
             }
 
+            if (string.Compare(_config.Version, "1.2.0") < 0)
+            {
+                _config.RenameBasedOnPlayerName = defaultConfig.RenameBasedOnPlayerName;
+                _config.BagNameFormat = defaultConfig.BagNameFormat;
+            }
+
             PrintWarning("Config update complete! Updated from version " + _config.Version + " to " + Version.ToString());
             _config.Version = Version.ToString();
         }
@@ -90,7 +99,8 @@ namespace Oxide.Plugins
                 RenameBasedOnGrid = true,
                 RenameBasedOnBiome = true,
                 RenameBasedOnLandmarkProximity = true,
-                BagNameFormat = "{grid} - {biome} - {landmark}"
+                RenameBasedOnPlayerName = true,
+                BagNameFormat = "{player} - {grid} - {biome} - {landmark}"
             };
         }
 
@@ -133,26 +143,28 @@ namespace Oxide.Plugins
                     string grid = string.Empty;
                     string biome = string.Empty;
                     string landmark = string.Empty;
+                    string playerName = string.Empty;
 
                     if (_config.RenameBasedOnGrid)
                     {
-                        grid = PhoneController.PositionToGridCoord(entity.transform.position);
+                        Vector2i gridPosition = MapHelper.PositionToGrid(entity.transform.position);
+                        grid = MapHelper.GridToString(gridPosition);
                     }
 
                     if (_config.RenameBasedOnBiome)
-                    {
                         biome = GetBiome(entity.transform.position);
-                    }
 
                     if (_config.RenameBasedOnLandmarkProximity)
-                    {
                         landmark = GetNearbyLandmark(entity.transform.position);
-                    }
+
+                    if (_config.RenameBasedOnPlayerName)
+                        playerName = player.displayName;
 
                     string newName = _config.BagNameFormat
                         .Replace("{grid}", grid)
                         .Replace("{biome}", biome)
-                        .Replace("{landmark}", landmark);
+                        .Replace("{landmark}", landmark)
+                        .Replace("{player}", playerName);
 
                     SleepingBag sleepingBag = entity as SleepingBag;
                     if (sleepingBag != null && !string.IsNullOrEmpty(newName))
